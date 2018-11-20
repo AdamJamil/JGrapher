@@ -1,20 +1,29 @@
 package sample;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 class Node
 {
-    static double k = 0.01;
-
-    ArrayList<Node> neighbors = new ArrayList<>();
-    double x, vx;
-    double y, vy;
+    private static double k = .01;
+    private static double damp = .999;
+    private static double friendDistance = 70;
+    private static double miniDistance = 12;
 
     ArrayList<MiniNode> miniNodes;
+    ArrayList<Node> neighbors = new ArrayList<>();
+    int miniEdges = 0;
 
-    Node()
+    double x, vx;
+    double y, vy;
+    boolean selected = false;
+    String name;
+
+    Node(String s)
     {
+        name = s;
+
         x = Math.random() * Main.width;
         y = Math.random() * Main.height;
     }
@@ -23,8 +32,8 @@ class Node
     {
         ArrayList<Node> nodes = graph.nodes;
 
-        vx *= 0.95;
-        vy *= 0.95;
+        vx *= damp;
+        vy *= damp;
 
         if (neighbors.size() == 0)
             return;
@@ -40,7 +49,7 @@ class Node
             if (neighbors.contains(n))
             {
                 double xDist = n.x - x, yDist = n.y - y;
-                double f = k * (Math.sqrt(xDist * xDist + yDist * yDist) - 70);
+                double f = k * (Math.sqrt(xDist * xDist + yDist * yDist) - friendDistance);
                 double theta = Math.atan2(yDist, xDist);
                 fx += f * Math.cos(theta);
                 fy += f * Math.sin(theta);
@@ -59,8 +68,8 @@ class Node
         {
             for (MiniNode miniNode : miniNodes)
             {
-                miniNode.vx *= .95;
-                miniNode.vy *= .95;
+                miniNode.vx *= damp;
+                miniNode.vy *= damp;
 
                 double minifx = 0;
                 double minify = 0;
@@ -70,7 +79,7 @@ class Node
                     if (n == this)
                     {
                         double xDist = n.x - miniNode.x, yDist = n.y - miniNode.y;
-                        double f = 10 * k * (Math.sqrt(xDist * xDist + yDist * yDist) - 9);
+                        double f = 10 * k * (Math.sqrt(xDist * xDist + yDist * yDist) - miniDistance);
                         double theta = Math.atan2(yDist, xDist);
                         minifx += f * Math.cos(theta);
                         minify += f * Math.sin(theta);
@@ -80,14 +89,14 @@ class Node
                         double xDist = n.x - miniNode.x, yDist = n.y - miniNode.y;
                         double f = k / (xDist * xDist + yDist * yDist);
                         double theta = Math.atan2(yDist, xDist);
-                        //fx -= 100000 * Math.cos(theta) * f;
-                        //fy -= 100000 * Math.sin(theta) * f;
+                        fx -= 10000 * Math.cos(theta) * f;
+                        fy -= 10000 * Math.sin(theta) * f;
                     }
                 }
 
                 {
                     double xDist = miniNode.friend.x - miniNode.x, yDist = miniNode.friend.y - miniNode.y;
-                    double f = k * (Math.sqrt(xDist * xDist + yDist * yDist) - 52);
+                    double f = k * (Math.sqrt(xDist * xDist + yDist * yDist) - (friendDistance - miniDistance * 2));
                     double theta = Math.atan2(yDist, xDist);
                     minifx += 10 * f * Math.cos(theta);
                     minify += 10 * f * Math.sin(theta);
@@ -104,8 +113,11 @@ class Node
 
     void move()
     {
-        x += vx * Main.dt;
-        y += vy * Main.dt;
+        if (!selected)
+        {
+            x += vx * Main.dt;
+            y += vy * Main.dt;
+        }
 
         if (miniNodes != null)
             for (MiniNode miniNode : miniNodes)
@@ -113,5 +125,11 @@ class Node
                 miniNode.x += miniNode.vx * Main.dt;
                 miniNode.y += miniNode.vy * Main.dt;
             }
+    }
+
+    @Override
+    public String toString()
+    {
+        return this.name;
     }
 }
