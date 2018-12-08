@@ -1,12 +1,21 @@
 package sample;
 
+import javafx.scene.paint.Color;
+
 class Edge
 {
-    int a, b;
+    Node a, b;
+    Color color = Color.BLACK;
 
-    Edge(int a, int b)
+    Edge(Node a, Node b)
     {
         this.a = a;
         this.b = b;
+    }
+
+    @Override
+    public String toString()
+    {
+        return a + "" + b;
     }
 }

@@ -1,24 +1,26 @@
 package sample;
 
+import javafx.scene.paint.Color;
+
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
 
 class Node
 {
     private static double k = .01;
-    private static double damp = .999;
+    private static double damp = .998;
     private static double friendDistance = 70;
     private static double miniDistance = 12;
 
     ArrayList<MiniNode> miniNodes;
     ArrayList<Node> neighbors = new ArrayList<>();
+    ArrayList<Edge> edges = new ArrayList<>();
     int miniEdges = 0;
 
     double x, vx;
     double y, vy;
     boolean selected = false;
     String name;
+    Color color = Color.BLACK;
 
     Node(String s)
     {
@@ -59,8 +61,8 @@ class Node
                 double xDist = n.x - x, yDist = n.y - y;
                 double f = k / (xDist * xDist + yDist * yDist);
                 double theta = Math.atan2(yDist, xDist);
-                fx -= 100000 * Math.cos(theta) * f;
-                fy -= 100000 * Math.sin(theta) * f;
+                fx -= 50000 * Math.cos(theta) * f;
+                fy -= 50000 * Math.sin(theta) * f;
             }
         }
 
