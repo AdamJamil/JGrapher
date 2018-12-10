@@ -7,14 +7,14 @@ import java.util.ArrayList;
 class Node
 {
     private static double k = .01;
-    private static double damp = .998;
-    private static double friendDistance = 70;
+    private static double damp = .99825;
+    private static double friendDistance = 90;
     private static double miniDistance = 12;
 
     ArrayList<MiniNode> miniNodes;
+    ArrayList<MiniEdge> miniEdges;
     ArrayList<Node> neighbors = new ArrayList<>();
     ArrayList<Edge> edges = new ArrayList<>();
-    int miniEdges = 0;
 
     double x, vx;
     double y, vy;

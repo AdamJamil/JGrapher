@@ -88,7 +88,6 @@ public class Main extends Application
             {
                 double min = 70;
                 for (Graph graph : graphs)
-                {
                     for (Node node : graph.nodes)
                     {
                         double dist = ((x - node.x) * (x - node.x)) + ((y - node.y) * (y - node.y));
@@ -99,7 +98,6 @@ public class Main extends Application
                             min = dist;
                         }
                     }
-                }
 
                 if (selectedNode == null)
                     return;

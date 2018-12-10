@@ -1,8 +1,6 @@
 package sample;
 
 import javafx.scene.paint.Color;
-
-import java.lang.reflect.Array;
 import java.util.*;
 
 class Graph
@@ -50,15 +48,14 @@ class Graph
 
         for (Node node : nodes)
         {
-            System.out.println("\n" + node);
-
             ArrayList<JoinedMiniNodes> miniNodes = new ArrayList<>(node.miniNodes.size());
+            node.miniEdges = new ArrayList<>(node.neighbors.size() - 1);
 
             for (MiniNode miniNode : node.miniNodes)
                 miniNodes.add(new JoinedMiniNodes(miniNode));
 
             label:
-            while (node.miniEdges != node.neighbors.size() - 1)
+            while (node.miniEdges.size() != node.neighbors.size() - 1)
             {
                 System.out.println();
                 for (JoinedMiniNodes joinedMiniNodes : miniNodes)
@@ -97,9 +94,9 @@ class Graph
                                 joinedMiniNodes1.join(joinedMiniNodes2);
                                 miniNodes.remove(j);
 
-                                node.miniEdges++;
+                                node.miniEdges.add(new MiniEdge(joinedMiniNodes1.right, joinedMiniNodes2.left));
 
-                                if (node.miniEdges == node.neighbors.size() - 1)
+                                if (node.miniEdges.size() == node.neighbors.size() - 1)
                                     break label;
 
                                 continue inner;
@@ -160,11 +157,12 @@ class Graph
                         dp[0][size] = new int[]{size};
 
                 for (int j = 1; j < sizes.length; j++)
-                {
                     for (int l = 0; l <= sum; l++)
-                    {
                         if (dp[j - 1][l] != null)
-                            if (sizes[j] + l < sum)
+                        {
+                            dp[j][l] = dp[j - 1][l];
+
+                            if (sizes[j] + l <= sum)
                             {
                                 dp[j][sizes[j] + l] = new int[dp[j - 1][l].length + 1];
                                 System.arraycopy(dp[j - 1][l], 0, dp[j][sizes[j] + l], 0, dp[j - 1][l].length);
@@ -172,8 +170,7 @@ class Graph
                             }
                             else if (l == sum)
                                 dp[j][sum] = dp[j - 1][sum];
-                    }
-                }
+                        }
 
                 int[] result = dp[sizes.length - 1][sum];
 
