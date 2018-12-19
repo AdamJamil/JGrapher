@@ -1,15 +1,21 @@
 package sample;
 
 import javafx.scene.paint.Color;
+import org.apache.commons.math3.util.FastMath;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
 class Node
 {
-    private static double k = .01;
-    private static double damp = .99825;
-    private static double friendDistance = 90;
-    private static double miniDistance = 12;
+    static double k = .01;
+    static double damp = .99825;
+    static double rotationalDamp = 0.85;
+    static double friendDistance = 150;
+    static double miniDistance = 15;
+    static double friendConstant = 1;
+    static double nodeRepulsion = 2000;
+    static double angleRegularization = 0.05;
 
     ArrayList<MiniNode> miniNodes;
     ArrayList<MiniEdge> miniEdges;
@@ -18,6 +24,7 @@ class Node
 
     double x, vx;
     double y, vy;
+    double forceX, forceY;
     boolean selected = false;
     String name;
     Color color = Color.BLACK;
@@ -32,100 +39,100 @@ class Node
 
     void computeForce(Graph graph)
     {
-        ArrayList<Node> nodes = graph.nodes;
-
-        vx *= damp;
-        vy *= damp;
-
         if (neighbors.size() == 0)
             return;
 
-        double fx = 0;
-        double fy = 0;
-
-        for (Node n : nodes)
-        {
-            if (this == n)
-                continue;
-
-            if (neighbors.contains(n))
-            {
-                double xDist = n.x - x, yDist = n.y - y;
-                double f = k * (Math.sqrt(xDist * xDist + yDist * yDist) - friendDistance);
-                double theta = Math.atan2(yDist, xDist);
-                fx += f * Math.cos(theta);
-                fy += f * Math.sin(theta);
-            }
-            else
-            {
-                double xDist = n.x - x, yDist = n.y - y;
-                double f = k / (xDist * xDist + yDist * yDist);
-                double theta = Math.atan2(yDist, xDist);
-                fx -= 50000 * Math.cos(theta) * f;
-                fy -= 50000 * Math.sin(theta) * f;
-            }
-        }
-
         if (graph.split)
         {
-            for (MiniNode miniNode : miniNodes)
+            Collections.sort(miniNodes);
+
+            for (int i = 0; i < miniNodes.size(); i++)
             {
-                miniNode.vx *= damp;
-                miniNode.vy *= damp;
+                MiniNode miniNode = miniNodes.get(i);
+                miniNode.omega %= 2 * Math.PI;
+                if (miniNode.omega > 0)
+                    miniNode.omega = FastMath.log(rotationalDamp * miniNode.omega + 1);
+                else
+                    miniNode.omega = -FastMath.log(-rotationalDamp * miniNode.omega + 1);
 
-                double minifx = 0;
-                double minify = 0;
+                double miniAlpha = 0, minifx = 0, minify = 0;
+                double miniX = miniNode.getX();
+                double miniY = miniNode.getY();
 
-                for (Node n : nodes)
+                for (MiniNode temp : miniNodes)
                 {
-                    if (n == this)
-                    {
-                        double xDist = n.x - miniNode.x, yDist = n.y - miniNode.y;
-                        double f = 10 * k * (Math.sqrt(xDist * xDist + yDist * yDist) - miniDistance);
-                        double theta = Math.atan2(yDist, xDist);
-                        minifx += f * Math.cos(theta);
-                        minify += f * Math.sin(theta);
-                    }
+                    if (temp == miniNode)
+                        continue;
+
+                    if (i == 0)
+                        miniAlpha -= angleRegularization * (miniNode.theta + (2 * Math.PI) - miniNodes.get(miniNodes.size() - 1).theta - (2 * Math.PI) / miniNodes.size());
                     else
-                    {
-                        double xDist = n.x - miniNode.x, yDist = n.y - miniNode.y;
-                        double f = k / (xDist * xDist + yDist * yDist);
-                        double theta = Math.atan2(yDist, xDist);
-                        fx -= 10000 * Math.cos(theta) * f;
-                        fy -= 10000 * Math.sin(theta) * f;
-                    }
+                        miniAlpha -= angleRegularization * (miniNode.theta - miniNodes.get(i - 1).theta - (2 * Math.PI) / miniNodes.size());
+
+                    if (miniNodes.size() <= 2)
+                        continue;
+
+                    if (i == miniNodes.size() - 1)
+                        miniAlpha -= angleRegularization * (miniNodes.get(0).theta + (2 * Math.PI) - miniNode.theta - (2 * Math.PI) / miniNodes.size());
+                    else
+                        miniAlpha -= angleRegularization * (miniNodes.get(i + 1).theta - miniNode.theta - (2 * Math.PI) / miniNodes.size());
                 }
 
                 {
-                    double xDist = miniNode.friend.x - miniNode.x, yDist = miniNode.friend.y - miniNode.y;
-                    double f = k * (Math.sqrt(xDist * xDist + yDist * yDist) - (friendDistance - miniDistance * 2));
-                    double theta = Math.atan2(yDist, xDist);
-                    minifx += 10 * f * Math.cos(theta);
-                    minify += 10 * f * Math.sin(theta);
+                    double tempX = miniNode.friend.parent.x + miniDistance * FastMath.cos(miniNode.friend.theta);
+                    double tempY = miniNode.friend.parent.y + miniDistance * FastMath.sin(miniNode.friend.theta);
+                    double xDist = tempX - miniX, yDist = tempY - miniY;
+                    double f = 1 * k * (FastMath.sqrt(xDist * xDist + yDist * yDist) - (friendDistance - miniDistance * 2));
+                    //if (f > 0)
+                        //f = FastMath.log(f + 1);
+                    double theta = FastMath.atan2(yDist, xDist);
+                    minifx += f * FastMath.cos(theta);
+                    minify += f * FastMath.sin(theta);
                 }
 
-                miniNode.vx += minifx * Main.dt;
-                miniNode.vy += minify * Main.dt;
+                //Fperp = F - (F.v)v
+                double dotProd = minifx * FastMath.cos(miniNode.theta) + minify * FastMath.sin(miniNode.theta);
+                minifx -= dotProd * FastMath.cos(miniNode.theta);
+                minify -= dotProd * FastMath.sin(miniNode.theta);
+                double f = FastMath.sqrt(minifx * minifx + minify * minify);
+
+                //check direction
+                if (minifx * FastMath.sin(miniNode.theta) - minify * FastMath.cos(miniNode.theta) < 0)
+                    miniAlpha += f;
+                else
+                    miniAlpha -= f;
+
+                miniNode.omega += miniAlpha * Main.dt;
             }
         }
-
-        vx += fx * Main.dt / Math.log(neighbors.size() + 1);
-        vy += fy * Main.dt / Math.log(neighbors.size() + 1);
     }
 
     void move()
     {
-        if (!selected)
+        if (selected)
         {
-            x += vx * Main.dt;
-            y += vy * Main.dt;
+            forceX = 0;
+            forceY = 0;
+            return;
         }
+
+        vx += forceX * Main.dt / FastMath.log(neighbors.size() + 1);
+        vy += forceY * Main.dt / FastMath.log(neighbors.size() + 1);
+        forceX = 0;
+        forceY = 0;
+
+        vx *= damp;
+        vy *= damp;
+
+        x += vx * Main.dt;
+        y += vy * Main.dt;
 
         if (miniNodes != null)
             for (MiniNode miniNode : miniNodes)
             {
-                miniNode.x += miniNode.vx * Main.dt;
-                miniNode.y += miniNode.vy * Main.dt;
+                miniNode.theta = (miniNode.theta + miniNode.omega * Main.dt) % (2 * Math.PI);
+                if (miniNode.theta < 0)
+                    miniNode.theta += 2 * Math.PI;
             }
     }
 

@@ -19,14 +19,17 @@ import java.util.ArrayList;
 
 public class Main extends Application
 {
+    boolean fast = false;
     static double width = 500;
     static double height = 500;
     static double dt = 0.02;
     static ArrayList<Graph> graphs = new ArrayList<>();
-    Graph graph = counterexample();
+    Graph graph = GraphCollection.test();
 
     Node selectedNode = null;
     boolean RMBHeld = false;
+    
+    int graphIndex = 0;
 
     @Override
     public void start(Stage primaryStage)
@@ -41,7 +44,7 @@ public class Main extends Application
         primaryStage.show();
 
         graphs.add(graph);
-        graphs.get(0).partition(2);
+        graphs.get(graphIndex).partition(2);
 
         final Timeline timeline = new Timeline();
         timeline.setCycleCount(Animation.INDEFINITE);
@@ -56,25 +59,52 @@ public class Main extends Application
             if (RMBHeld)
                 rotate();
 
-            for (Graph graph : graphs)
-            {
-                moveGraph(graph);
-                drawGraph(gc, graph);
-            }
+            graphs.get(graphIndex).stable = false;
+
+            while (fast && !graphs.get(graphIndex).stable)
+                moveGraph(graphs.get(graphIndex));
+            moveGraph(graphs.get(graphIndex));
+            moveGraph(graphs.get(graphIndex));
+            moveGraph(graphs.get(graphIndex));
+            moveGraph(graphs.get(graphIndex));
+            moveGraph(graphs.get(graphIndex));
+            moveGraph(graphs.get(graphIndex));
+
+            drawGraph(gc, graphs.get(graphIndex));
         }));
 
         scene.setOnKeyPressed(event ->
         {
-            if (graphs.size() > 1)
-                return;
-
-            Graph graph = graphs.get(0);
+            Graph graph = graphs.get(graphIndex);
 
             if (event.getCode() == KeyCode.SPACE)
                 if (!graph.split)
                     graph.split();
                 else if (!graph.connect)
                     graph.connect();
+
+            if (event.getCode() == KeyCode.W)
+            {
+                graphIndex++;
+                graphIndex %= graphs.size();
+
+                for (Node a : graphs.get(0).nodes)
+                    for (Node b : graphs.get(graphIndex).nodes)
+                        if (a.toString().equals(b.toString()))
+                        {
+                            b.x = a.x;
+                            b.y = a.y;
+                        }
+
+                for (NodePair a : graphs.get(0).nodePairs)
+                    for (NodePair b : graphs.get(graphIndex).nodePairs)
+                        if ((a.a.toString().equals(b.a.toString()) && a.b.toString().equals(b.b.toString()) ||
+                                (a.b.toString().equals(b.a.toString()) && a.a.toString().equals(b.b.toString()))))
+                        {
+                            b.friendConstant = a.friendConstant;
+                            b.nodeRepulsion = a.nodeRepulsion;
+                        }
+            }
         });
 
         scene.setOnMousePressed(event ->
@@ -131,31 +161,57 @@ public class Main extends Application
 
     void moveGraph(Graph g)
     {
-        ArrayList<Node> node = g.nodes;
+        ArrayList<Node> nodes = g.nodes;
         double avgvx = 0, avgvy = 0, avgx = 0, avgy = 0;
 
-        for (Node n : node)
+        double instability = 0;
+
+        for (Node node : graphs.get(graphIndex).nodes)
+            instability += node.forceX * node.forceX + node.forceY * node.forceY;
+
+        double stability = 1 - Math.tanh(instability);
+
+        for (NodePair nodePair : g.nodePairs)
+            nodePair.computeForce(stability);
+
+        for (Node n : nodes)
         {
-            n.computeForce(g);
+            n.move();
             avgvx += n.vx;
             avgvy += n.vy;
             avgx += (n.x - (width / 2));
             avgy += (n.y - (height / 2));
         }
 
-        avgvx /= node.size();
-        avgvy /= node.size();
-        avgx /= node.size();
-        avgy /= node.size();
+        avgvx /= nodes.size();
+        avgvy /= nodes.size();
+        avgx /= nodes.size();
+        avgy /= nodes.size();
 
-        for (Node n : node)
+        g.stable = true;
+
+        for (Node n : nodes)
         {
             n.vx -= avgvx;
             n.vy -= avgvy;
             n.x -= avgx;
             n.y -= avgy;
+            g.stable &= (n.vx * n.vx + n.vy * n.vy) < 0.004;
             n.move();
         }
+
+        boolean visible = true;
+
+        for (Node node : graphs.get(graphIndex).nodes)
+        {
+            visible &= node.x > 30;
+            visible &= node.x < width - 30;
+            visible &= node.y > 30;
+            visible &= node.y < height - 30;
+        }
+
+        if (!visible)
+            NodePair.friendDistance *= 1 - (0.00004 * stability);
     }
 
     void drawGraph(GraphicsContext gc, Graph graph)
@@ -178,9 +234,14 @@ public class Main extends Application
             {
                 for (MiniNode miniNode : n.miniNodes)
                 {
-                    gc.fillOval(miniNode.x - 4, miniNode.y - 4, 4 * 2, 4 * 2);
+                    for (Edge edge : miniNode.parent.edges)
+                        if (edge.a.miniNodes.contains(miniNode.friend) || edge.b.miniNodes.contains(miniNode.friend))
+                        {
+                            gc.setStroke(edge.color);
+                            break;
+                        }
 
-                    gc.strokeLine(miniNode.x, miniNode.y, miniNode.friend.x, miniNode.friend.y);
+                    gc.strokeLine(miniNode.getX(), miniNode.getY(), miniNode.friend.getX(), miniNode.friend.getY());
                 }
 
                 if (graph.connect)
@@ -188,9 +249,19 @@ public class Main extends Application
                     gc.setLineWidth(0.5);
                     for (MiniNode miniNode : n.miniNodes)
                         for (MiniNode neighbor : miniNode.neighbors)
-                            gc.strokeLine(miniNode.x, miniNode.y, neighbor.x, neighbor.y);
+                            gc.strokeLine(miniNode.getX(), miniNode.getY(), neighbor.getX(), neighbor.getY());
                 }
             }
+        }
+
+        gc.setFill(Color.BLACK);
+
+        for (Node n : node)
+        {
+            gc.setLineWidth(2);
+            if (graph.split)
+                for (MiniNode miniNode : n.miniNodes)
+                    gc.fillOval(miniNode.getX() - 4, miniNode.getY() - 4, 4 * 2, 4 * 2);
             else
             {
                 gc.setFill(n.color);
@@ -206,149 +277,6 @@ public class Main extends Application
 
         for (Node n : node)
             gc.fillText(n.toString(), n.x - 3, n.y + 3);
-    }
-
-    Graph graph1()
-    {
-        Graph graph = new Graph(6);
-
-        graph.linkBoth(0, 1);
-        graph.linkBoth(0, 2);
-        graph.linkBoth(1, 2);
-        graph.linkBoth(1, 3);
-        graph.linkBoth(1, 5);
-        graph.linkBoth(3, 4);
-
-        return graph;
-    }
-
-    Graph graph2()
-    {
-        Graph graph = new Graph(8);
-
-        graph.linkBoth(0, 1);
-        graph.linkBoth(0, 2);
-        graph.linkBoth(0, 3);
-        graph.linkBoth(0, 4);
-        graph.linkBoth(1, 2);
-        graph.linkBoth(2, 5);
-        graph.linkBoth(3, 4);
-        graph.linkBoth(3, 7);
-        graph.linkBoth(5, 6);
-        graph.linkBoth(6, 7);
-
-        return graph;
-    }
-
-    Graph graph3()
-    {
-        Graph graph = new Graph(7);
-
-        graph.linkBoth(0, 6);
-        graph.linkBoth(1, 6);
-        graph.linkBoth(2, 6);
-        graph.linkBoth(3, 6);
-        graph.linkBoth(4, 6);
-        graph.linkBoth(5, 6);
-        graph.linkBoth(0, 1);
-        graph.linkBoth(1, 2);
-        graph.linkBoth(2, 3);
-        graph.linkBoth(3, 4);
-        graph.linkBoth(4, 5);
-        graph.linkBoth(5, 0);
-
-        return graph;
-    }
-
-    Graph graph4()
-    {
-        Graph graph = new Graph(7);
-
-        graph.linkBoth(0, 1);
-        graph.linkBoth(0, 2);
-        graph.linkBoth(0, 3);
-        graph.linkBoth(1, 2);
-        graph.linkBoth(2, 3);
-        graph.linkBoth(2, 4);
-        graph.linkBoth(3, 5);
-        graph.linkBoth(4, 6);
-        graph.linkBoth(5, 6);
-
-        return graph;
-    }
-
-    Graph graph5()
-    {
-        Graph graph = new Graph(10);
-
-        graph.linkBoth(0, 1);
-        graph.linkBoth(0, 2);
-        graph.linkBoth(1, 2);
-        graph.linkBoth(1, 3);
-        graph.linkBoth(1, 4);
-        graph.linkBoth(2, 4);
-        graph.linkBoth(2, 5);
-        graph.linkBoth(3, 4);
-        graph.linkBoth(3, 6);
-        graph.linkBoth(3, 7);
-        graph.linkBoth(4, 5);
-        graph.linkBoth(4, 7);
-        graph.linkBoth(4, 8);
-        graph.linkBoth(5, 8);
-        graph.linkBoth(5, 9);
-        graph.linkBoth(6, 7);
-        graph.linkBoth(7, 8);
-        graph.linkBoth(8, 9);
-
-        return graph;
-    }
-
-    Graph graph6()
-    {
-        Graph graph = new Graph(3);
-
-        graph.linkBoth(0, 1);
-        graph.linkBoth(1, 2);
-
-        return graph;
-    }
-
-    Graph fakeCounterexample()
-    {
-        Graph graph = new Graph(8);
-
-        graph.linkBoth(0, 2);
-        graph.linkBoth(0, 3);
-        graph.linkBoth(0, 4);
-        graph.linkBoth(0, 5);
-        graph.linkBoth(0, 6);
-        graph.linkBoth(0, 7);
-        graph.linkBoth(1, 2);
-        graph.linkBoth(1, 3);
-        graph.linkBoth(1, 4);
-        graph.linkBoth(1, 5);
-        graph.linkBoth(1, 6);
-        graph.linkBoth(1, 7);
-
-        return graph;
-    }
-
-    Graph counterexample()
-    {
-        Graph graph = new Graph(9);
-
-        graph.linkBoth(0, 1);
-        graph.linkBoth(2, 1);
-        graph.linkBoth(3, 1);
-        graph.linkBoth(1, 4);
-        graph.linkBoth(1, 5);
-        graph.linkBoth(4, 6);
-        graph.linkBoth(5, 6);
-        graph.linkBoth(4, 7);
-        graph.linkBoth(5, 7);
-        graph.linkBoth(7, 8);
-
-        return graph;
     }
 
     void rotate()
@@ -385,8 +313,8 @@ public class Main extends Application
             {
                 for (MiniNode miniNode : n.miniNodes)
                 {
-                    graphics2D.drawOval((int) miniNode.x - 4, (int) miniNode.y - 4, 4 * 2, 4 * 2);
-                    graphics2D.drawLine((int) miniNode.x, (int) miniNode.y, (int) miniNode.friend.x, (int) miniNode.friend.y);
+                    graphics2D.drawOval((int) miniNode.getX() - 4, (int) miniNode.getY() - 4, 4 * 2, 4 * 2);
+                    graphics2D.drawLine((int) miniNode.getX(), (int) miniNode.getY(), (int) miniNode.friend.getX(), (int) miniNode.friend.getY());
                 }
 
                 if (graph.connect)
@@ -394,7 +322,7 @@ public class Main extends Application
                     graphics2D.setStroke(thin);
                     for (MiniNode miniNode : n.miniNodes)
                         for (MiniNode neighbor : miniNode.neighbors)
-                            graphics2D.drawLine((int) miniNode.x, (int) miniNode.y, (int) neighbor.x, (int) neighbor.y);
+                            graphics2D.drawLine((int) miniNode.getX(), (int) miniNode.getY(), (int) neighbor.getX(), (int) neighbor.getY());
                 }
             }
             else

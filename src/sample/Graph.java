@@ -1,6 +1,8 @@
 package sample;
 
 import javafx.scene.paint.Color;
+import org.apache.commons.math3.util.FastMath;
+
 import java.util.*;
 
 class Graph
@@ -9,6 +11,8 @@ class Graph
     ArrayList<Edge> edges;
     boolean split = false;
     boolean connect = false;
+    boolean stable = false;
+    ArrayList<NodePair> nodePairs = new ArrayList<>();
 
     void split()
     {
@@ -19,16 +23,14 @@ class Graph
 
         for (Edge e : edges)
         {
-            MiniNode a = new MiniNode(), b = new MiniNode();
+            MiniNode a = new MiniNode(e.a), b = new MiniNode(e.b);
             Node nodeA = e.a, nodeB = e.b;
 
-            double angleA = (((double) nodeA.miniNodes.size()) / nodeA.neighbors.size()) * 2 * Math.PI;
-            double angleB = (((double) nodeB.miniNodes.size()) / nodeB.neighbors.size()) * 2 * Math.PI;
+            double xDist = nodeA.x - nodeB.x, yDist = nodeA.y - nodeB.y;
+            double theta = FastMath.atan2(yDist, xDist);
 
-            a.x = nodeA.x + (15) * Math.cos(angleA);
-            a.y = nodeA.y + (15) * Math.sin(angleA);
-            b.x = nodeB.x + (15) * Math.cos(angleB);
-            b.y = nodeB.y + (15) * Math.sin(angleB);
+            a.theta = theta + Math.PI;
+            b.theta = theta;
 
             a.friend = b;
             b.friend = a;
@@ -143,6 +145,8 @@ class Graph
                         copy.nodes.remove(j);
 
                 ArrayList<Graph> components = components(copy);
+                if (arr[0] && arr[2] && arr[6])
+                    System.out.println(components);
 
                 int[] sizes = new int[components.size()];
 
@@ -152,9 +156,8 @@ class Graph
                 int sum  = edges.size() / 2;
                 int[][][] dp = new int[sizes.length][sum + 1][];
 
-                for (int size : sizes)
-                    if (size <= sum)
-                        dp[0][size] = new int[]{size};
+                if (sizes[0] <= sum)
+                    dp[0][sizes[0]] = new int[]{sizes[0]};
 
                 for (int j = 1; j < sizes.length; j++)
                     for (int l = 0; l <= sum; l++)
@@ -177,26 +180,24 @@ class Graph
                 if (result != null)
                 {
                     ways++;
-                    Graph one = new Graph(0), two = new Graph(0);
+                    Graph one = new Graph(0), two = new Graph(0), finalCopy = copy();
 
                     System.out.println("here we go");
                     outer: for (Graph component : components)
                     {
                         System.out.println(component);
                         for (int j = 0; j < result.length; j++)
-                        {
                             if (component.edges.size() == result[j])
                             {
                                 result[j] = -1;
                                 one.join(component);
                                 continue outer;
                             }
-                        }
 
                         two.join(component);
                     }
 
-                    outer: for (Node node : nodes)
+                    outer: for (Node node : finalCopy.nodes)
                     {
                         for (Node temp : one.nodes)
                             if (temp.toString().equals(node.toString()))
@@ -215,7 +216,7 @@ class Graph
                         node.color = Color.GREY;
                     }
 
-                    outer: for (Edge edge : edges)
+                    outer: for (Edge edge : finalCopy.edges)
                     {
                         for (Edge temp : one.edges)
                             if (temp.toString().equals(edge.toString()))
@@ -227,7 +228,8 @@ class Graph
                         edge.color = Color.BLUE;
                     }
 
-                    return;
+                    finalCopy.makePairs();
+                    Main.graphs.add(finalCopy);
                 }
 
                 arr = getNextChoice(arr);
@@ -364,6 +366,13 @@ class Graph
     {
         nodes.addAll(graph.nodes);
         edges.addAll(graph.edges);
+    }
+
+    void makePairs()
+    {
+        for (int i = 0; i < nodes.size() - 1; i++)
+            for (int j = i + 1; j < nodes.size(); j++)
+                nodePairs.add(new NodePair(nodes.get(i), nodes.get(j), nodes.get(i).neighbors.contains(nodes.get(j))));
     }
 
     @Override
